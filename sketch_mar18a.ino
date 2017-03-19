@@ -272,7 +272,7 @@ void loop() {
     client.loop();
   
     long now = millis();
-    if (now - lastMsg > 2000) {
+    if (now - lastMsg > 60000) {
       lastMsg = now;
       ++value;
       snprintf (msg, 75, "hello world #%ld", value);
