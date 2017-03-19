@@ -1,7 +1,6 @@
-#define DEBUGGING true
-#define DEBUG true
-
 #include <Arduino.h>
+#include <cstdlib>
+#include <string>
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
@@ -58,6 +57,80 @@ IRrecv irrecv(recvLED);
 decode_results results;
 bool status = false;
 
+class SamsungRemote {
+  public:
+  static const int bits = 32;
+  
+  static const unsigned long btn0 = 0xE0E08877;
+  static const unsigned long btn1 = 0xE0E020DF;
+  static const unsigned long btn2 = 0xE0E0A05F;
+  static const unsigned long btn3 = 0xE0E0609F;
+  static const unsigned long btn4 = 0xE0E010EF;
+  static const unsigned long btn5 = 0xE0E0906F;
+  static const unsigned long btn6 = 0xE0E050AF;
+  static const unsigned long btn7 = 0xE0E030CF;
+  static const unsigned long btn8 = 0xE0E0B04F;
+  static const unsigned long btn9 = 0xE0E0708F;
+
+  static const unsigned long pwr_on = 0xE0E040BF;
+  static const unsigned long pwr_off = 0xE0E040BF;
+
+  static const unsigned long input = 0xE0E0807F;
+
+  static const unsigned long ch_up = 0xE0E048B7;
+  static const unsigned long ch_dn = 0xE0E008F7;
+
+  static const unsigned long vol_up = 0xE0E0E01F;
+  static const unsigned long vol_dn = 0xE0E0D02F;
+
+  static const unsigned long mute = 0xE0E0F00F;
+  static const unsigned long menu = 0xE0E058A7;
+};
+
+void setChannel(const char* channelNumber) {
+  for ( int i = 0; channelNumber[i]; i++ ) {
+    Serial.print("Sending: ");
+    Serial.println( channelNumber[i] );
+
+    unsigned long code;
+    switch ( channelNumber[i] ) {
+      case '0':
+        code = SamsungRemote::btn0;
+        break;
+      case '1':
+        code = SamsungRemote::btn1;
+        break;
+      case '2':
+        code = SamsungRemote::btn2;
+        break;
+      case '3':
+        code = SamsungRemote::btn3;
+        break;
+      case '4':
+        code = SamsungRemote::btn4;
+        break;
+      case '5':
+        code = SamsungRemote::btn5;
+        break;
+      case '6':
+        code = SamsungRemote::btn6;
+        break;
+      case '7':
+        code = SamsungRemote::btn7;
+        break;
+      case '8':
+        code = SamsungRemote::btn8;
+        break;
+      case '9':
+        code = SamsungRemote::btn9;
+        break;
+        
+    }
+    irsend.sendSAMSUNG(code, SamsungRemote::bits);
+    delay(100);
+  }
+}
+
 void setup() {
   // put your setup code here, to run once:
   WiFi.hostname(hostName);
@@ -83,18 +156,6 @@ void setup() {
   irrecv.enableIRIn();
 
   Serial.println("IR setup complete.");
-
-  /*
-  server.on("/", [](){
-    x++;
-    String webPage = String("<h1>") + x + String("</h1>");
-    server.send(200, "text/html", webPage);
-    Serial.println( ESP.getFreeHeap() );
-  });
-  
-  server.begin();
-  Serial.println("HTTP server started");
-  */
 
   pinMode(LED, OUTPUT);
   digitalWrite(LED, HIGH);
@@ -177,7 +238,16 @@ void setup() {
   client.setCallback(callback);
 }
 
-void callback(char* topic, byte* payload, unsigned int length) {
+void callback(char* topic, byte* payloadBytes, unsigned int length) {
+  char* payload = new char[length];
+  for ( int i = 0; i < length; i++ ) {
+    payload[i] = (char)payloadBytes[i];
+  }
+  payload[length] = '\0';
+  //char* payload_nonull = reinterpret_cast<char*>(payloadBytes);
+  Serial.print("Reinterpreted: ");
+  
+  Serial.println(payload);
   Serial.print("Message arrived [");
   Serial.print(topic);
   Serial.print("] ");
@@ -186,17 +256,19 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
   Serial.println();
 
-  // Switch on the LED if an 1 was received as first character
-  if ((char)payload[0] == '1') {
-    Serial.println("Payload 1");
-    //digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
-    // but actually the LED is on; this is because
-    // it is acive low on the ESP-01)
-  } else {
-    Serial.println("Payload not 1");
-    //digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
-  }
-
+  const char* channelCmd = "channel ";
+  const int channelCmdLength = 8;
+  const char* volumeCmd = "volume ";
+  const int volumeCmdLength = 7;
+  
+  if ( strncmp(payload, channelCmd, 8) == 0 ) {
+    //const char* channelNumber = &payload[channelCmdLength];
+    //int channelNumber = atoi(&payload[channelCmdLength]);
+    setChannel(&payload[channelCmdLength]);
+    // Serial.println( channelNumber );
+  } else if ( strncmp(payload, volumeCmd, volumeCmdLength) == 0 ) {
+    int volumeNumber = atoi(&payload[volumeCmdLength]);
+  }// else if ( strncmp(payload, 
 }
 
 unsigned long lastAttempt = 0;
@@ -275,7 +347,7 @@ void loop() {
     if (now - lastMsg > 60000) {
       lastMsg = now;
       ++value;
-      snprintf (msg, 75, "hello world #%ld", value);
+      snprintf (msg, 75, "keepalive #%ld", value);
       Serial.print("Publish message: ");
       Serial.println(msg);
       client.publish("espslpd", msg);
