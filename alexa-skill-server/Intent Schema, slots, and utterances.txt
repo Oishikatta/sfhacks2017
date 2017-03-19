@@ -1,0 +1,81 @@
+From Alexa Skill Toolkit in Amazon Developer Console
+
+Intent Schema:
+{
+  "intents": [
+    {
+      "intent": "ChangeChannel",
+      "slots": [
+        {
+          "name": "CHANNEL",
+          "type": "AMAZON.NUMBER"
+        }
+      ]
+    },
+    {
+      "intent": "ChangeVolume",
+      "slots": [
+        {
+          "name": "VOLUPDOWN",
+          "type": "RAISE_LOWER"
+        },
+        {
+          "name": "VOLUME",
+          "type": "AMAZON.NUMBER"
+        }
+      ]
+    },
+    {
+      "intent": "TurnOnOff",
+      "slots": [
+        {
+          "name": "STATUS",
+          "type": "ON_OFF"
+        }
+      ]
+    },
+    {
+      "intent": "SelectMenuFunction",
+      "slots": [
+        {
+          "name": "SELECT",
+          "type": "MENU_FUNCTION"
+        }
+      ]
+    }
+  ]
+}
+Custom Slot Types:
+ON_OFF
+On
+Off
+
+MENU_FUNCTION
+Mute
+Menu
+Exit
+Info
+Tools
+Up
+Down
+Left
+Right
+Play
+Pause
+
+RAISE_LOWER
+Raise
+Lower
+
+Utterances:
+ChangeChannel  change channel to {CHANNEL}
+ChangeChannel  change the channel to {CHANNEL}
+ChangeChannel  switch channel to {CHANNEL}
+ChangeChannel  switch the channel to {CHANNEL}
+ChangeChannel  channel {CHANNEL}
+ChangeVolume  {VOLUPDOWN} volume by {VOLUME}
+ChangeVolume  {VOLUPDOWN} volume {VOLUME}
+TurnOnOff  turn it {STATUS}
+TurnOnOff  turn T.V. {STATUS}
+SelectMenuFunction  {SELECT}
+Stop
