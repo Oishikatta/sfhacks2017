@@ -290,7 +290,7 @@ void callback(char* topic, byte* payloadBytes, unsigned int length) {
   } else if ( strncmp(payload, menuCmd, menuCmdLength) == 0 ) {
     const char* menuC2 = &payload[menuCmdLength];
     if ( strncmp(menuC2, "mute", 4) == 0 ) {
-      
+      sendCode(SamsungRemote::mute);
     } else if ( strncmp(menuC2, "menu", 4) == 0 ) {
       
     } else if ( strncmp(menuC2, "exit", 4) == 0 ) {
