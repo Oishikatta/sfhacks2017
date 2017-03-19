@@ -5,6 +5,7 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
+#include <PubSubClient.h>
 //#include <WiFiClient.h>
 //#include <ESP8266WebServer.h>
 #include "fauxmoESP.h"
@@ -18,9 +19,14 @@
 #include "custom_wifi.h"
 
 fauxmoESP fauxmo;
-WebSocketClient webSocketClient;
+//WebSocketClient webSocketClient;
 // ?? Use WiFiClient class to create TCP connections
-WiFiClient client;
+WiFiClient espClient;
+PubSubClient client(espClient);
+long lastMsg = 0;
+char msg[50];
+int value = 0;
+
 //char path[] = "/";
 //char host[] = "websocket.iotbridge.regex.be";
 char path[] = "/socket.io/?EIO=3&transport=websocket";
@@ -33,7 +39,12 @@ char host[] = "necrosocket.herokuapp.com";
 
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASS;
+/*const IPAddress ip(192, 168, 43, 110);
+const IPAddress dns(8,8,8,8);
+const IPAddress gateway(192, 168, 43, 1);
+const IPAddress subnet(255,255,255,0);*/
 const char * hostName = "slpd";
+const char* mqtt_server = "broker.mqtt-dashboard.com";
 
 //ESP8266WebServer server(80);
 AsyncWebServer server(80);
@@ -50,6 +61,7 @@ bool status = false;
 void setup() {
   // put your setup code here, to run once:
   WiFi.hostname(hostName);
+  //WiFi.config(ip, gateway, subnet, dns);
   WiFi.begin(ssid, password);
   Serial.begin(115200);
   Serial.println("setup");
@@ -58,6 +70,9 @@ void setup() {
     delay(500);
     Serial.print(".");
   }
+
+  randomSeed(micros());
+  
   Serial.println("");
   Serial.print("Connected to ");
   Serial.println(ssid);
@@ -157,35 +172,67 @@ void setup() {
   });
 
   server.begin();
-  connectToWebSocket();
-}
-unsigned long Timer = 0;
-unsigned int attempts = 0;
 
-void connectToWebSocket() {
-  attempts++;
-  if ( attempts > 2 ) {
-    Serial.println("Too many reconnect attempts.");
+  client.setServer(mqtt_server, 1883);
+  client.setCallback(callback);
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+
+  // Switch on the LED if an 1 was received as first character
+  if ((char)payload[0] == '1') {
+    Serial.println("Payload 1");
+    //digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
+    // but actually the LED is on; this is because
+    // it is acive low on the ESP-01)
+  } else {
+    Serial.println("Payload not 1");
+    //digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
+  }
+
+}
+
+unsigned long lastAttempt = 0;
+void reconnect() {
+  if ( lastAttempt = 0 ) {
+    lastAttempt = millis();
+  } else if ( millis() - lastAttempt <= 15000 ) {
     return;
   }
-  // Connect to the websocket server
-  if (client.connect(WEBSOCKET_HOST, WEBSOCKET_PORT)) {
-    Serial.println("Connected");
-  } else {
-    Serial.println("Connection failed.");
-  }
 
-  // Handshake with the server
-  webSocketClient.path = path;
-  webSocketClient.host = host;
-  if (webSocketClient.handshake(client)) {
-    Serial.println("Handshake successful");
-  } else {
-    Serial.println("Handshake failed.");
+  lastAttempt = millis();
+  
+  // Loop until we're reconnected
+  if (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // Create a random client ID
+    String clientId = "ESP8266Client-";
+    clientId += String(random(0xffff), HEX);
+    // Attempt to connect
+    if (client.connect(clientId.c_str())) {
+      Serial.println("connected");
+      // Once connected, publish an announcement...
+      client.publish("espslpd", "hello world");
+      // ... and resubscribe
+      client.subscribe("espslpd");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      // delay(5000);
+    }
   }
 }
 
-
+unsigned long Timer = 0;
 
 void loop() {
   String data;
@@ -208,23 +255,31 @@ void loop() {
   digitalWrite(LED, status);
   status = !status;
 
-  if (client.connected()) {
-    //data = String("rawr");
-    //webSocketClient.sendData(data);
-    webSocketClient.getData(data);
-    if (data.length() > 0) {
-      Serial.print("Received data: ");
-      Serial.println(data);
-    }
-    
-    //webSocketClient.sendData(data);
+  if (false) {
   } else if (Timer != 0 && millis() - Timer >= 15000) {
     Serial.println("Reconnecting websocket.");
-    connectToWebSocket();
     Timer = 0;
-  } else if (Timer == 0) {
+  } else if (false && Timer == 0) {
     Serial.println("Client disconnected. Scheduling reconnect attempt.");
     Timer = millis();
+  }
+
+  
+  if (!client.connected()) {
+    reconnect();
+  } else {
+    // Client is connected.
+    client.loop();
+  
+    long now = millis();
+    if (now - lastMsg > 2000) {
+      lastMsg = now;
+      ++value;
+      snprintf (msg, 75, "hello world #%ld", value);
+      Serial.print("Publish message: ");
+      Serial.println(msg);
+      client.publish("espslpd", msg);
+    }
   }
   
   delay(10);
