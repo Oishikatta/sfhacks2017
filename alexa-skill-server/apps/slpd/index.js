@@ -22,11 +22,16 @@ app.intent('ChangeChannel', {
 console.log(req.data);
 });
 app.intent('ChangeVolume', {
-  "slots": {"VOLUME": "AMAZON.NUMBER" },
-  "utterances": ["{change volume to|bring volume to|volume}{1-100|VOLUME}"]
+  "slots": {"VOLUPDOWN": "RAISE_LOWER", "VOLUME": "AMAZON.NUMBER" },
+  "utterances": ["{{VOLUPDOWN}{raise|lower}{volume by|volume}{1-50|VOLUME}"]
 }, function(req, res) {
-  client.publish('espslpd', 'volume ' + req.slot('VOLUME'));
-  res.say('Changing volume to ' + req.slot('VOLUME'));
+  if (req.slot('VOLUPDOWN') == 'raise'){
+    client.publish('espslpd', 'volume +' + req.slot('VOLUME'));
+  }
+  else{
+    client.publish('espslpd', 'volume -' + req.slot('VOLUME'));
+  }
+  res.say(req.slot('VOLUPDOWN') + 'ing volume to ' + req.slot('VOLUME'));
 console.log(req.data);
 });
 app.intent('TurnOnOff', {

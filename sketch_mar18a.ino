@@ -131,6 +131,17 @@ void setChannel(const char* channelNumber) {
   }
 }
 
+void sendCode(unsigned long code) {
+  irsend.sendSAMSUNG(code, SamsungRemote::bits);
+}
+
+void loopSendCode(unsigned long code, int duration) {
+  for ( int i = 0; i < duration; i++ ) {
+    sendCode(code);
+    delay(100);
+  }
+}
+
 void setup() {
   // put your setup code here, to run once:
   WiFi.hostname(hostName);
@@ -244,22 +255,18 @@ void callback(char* topic, byte* payloadBytes, unsigned int length) {
     payload[i] = (char)payloadBytes[i];
   }
   payload[length] = '\0';
-  //char* payload_nonull = reinterpret_cast<char*>(payloadBytes);
-  Serial.print("Reinterpreted: ");
   
-  Serial.println(payload);
   Serial.print("Message arrived [");
   Serial.print(topic);
   Serial.print("] ");
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();
+  Serial.println(payload);
 
   const char* channelCmd = "channel ";
   const int channelCmdLength = 8;
   const char* volumeCmd = "volume ";
   const int volumeCmdLength = 7;
+  const char* menuCmd = "menu function: ";
+  const int menuCmdLength = 15;
   
   if ( strncmp(payload, channelCmd, 8) == 0 ) {
     //const char* channelNumber = &payload[channelCmdLength];
@@ -267,8 +274,47 @@ void callback(char* topic, byte* payloadBytes, unsigned int length) {
     setChannel(&payload[channelCmdLength]);
     // Serial.println( channelNumber );
   } else if ( strncmp(payload, volumeCmd, volumeCmdLength) == 0 ) {
+    const char* volumeC2 = &payload[volumeCmdLength];
+    Serial.println(volumeC2[0]);
+    if ( volumeC2[0] == '+' ) {
+      loopSendCode(SamsungRemote::vol_up, atoi((volumeC2++))*.4);
+    } else if ( volumeC2[0] == '-' ) {
+      Serial.println("Sending vol_dn");
+      loopSendCode(SamsungRemote::vol_up, atoi((volumeC2++))*.4);
+    } else if ( volumeC2[0] == 'u' ) {
+      sendCode(SamsungRemote::vol_up);
+    } else if ( volumeC2[0] == 'd' ) {
+      sendCode(SamsungRemote::vol_dn);
+    }
     int volumeNumber = atoi(&payload[volumeCmdLength]);
-  }// else if ( strncmp(payload, 
+  } else if ( strncmp(payload, menuCmd, menuCmdLength) == 0 ) {
+    const char* menuC2 = &payload[menuCmdLength];
+    if ( strncmp(menuC2, "mute", 4) == 0 ) {
+      
+    } else if ( strncmp(menuC2, "menu", 4) == 0 ) {
+      
+    } else if ( strncmp(menuC2, "exit", 4) == 0 ) {
+      
+    } else if ( strncmp(menuC2, "info", 4) == 0 ) {
+      
+    } else if ( strncmp(menuC2, "tools", 4) == 0 ) {
+      
+    } else if ( strncmp(menuC2, "up", 4) == 0 ) {
+      
+    } else if ( strncmp(menuC2, "down", 4) == 0 ) {
+      
+    } else if ( strncmp(menuC2, "left", 4) == 0 ) {
+      
+    } else if ( strncmp(menuC2, "right", 4) == 0 ) {
+      
+    } else if ( strncmp(menuC2, "play", 4) == 0 ) {
+      
+    } else if ( strncmp(menuC2, "pause", 4) == 0 ) {
+      
+    } else if ( strncmp(menuC2, "stop", 4) == 0 ) {
+      
+    }
+  }
 }
 
 unsigned long lastAttempt = 0;
