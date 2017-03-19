@@ -1,0 +1,21 @@
+'devices': {
+    'TV':{
+        'proto': 'RF',
+        // proto: RF or IR
+
+        'type': 'Samsung',
+        // Values for 'type' supported by library:
+        // RAW, Samsung, COOLIX, NEC, LG, Whynter, Sony, GC (Global Cache), Panasonic, JVC, Denon, Sharp, DISH, Daikin, Kelvinator, Sherwood, MitsubishiAC
+        
+        'commands':[
+            'on': {
+                'code': 0xE0E040BF,
+                'length': 32
+            },
+            'off': {
+                'code': 0xE0E040BF,
+                'length': 32
+            }
+        ]
+    }
+}
