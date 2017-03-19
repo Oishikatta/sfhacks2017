@@ -1,17 +1,42 @@
+#define DEBUGGING true
+#define DEBUG true
+
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
+#include <ESP8266mDNS.h>
+#include <ArduinoOTA.h>
 //#include <WiFiClient.h>
 //#include <ESP8266WebServer.h>
 #include "fauxmoESP.h"
 #include <IRremoteESP8266.h>
+#include <WebSocketClient.h>
+#include <FS.h>
+#include <Hash.h>
+#include <ESPAsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <SPIFFSEditor.h>
 #include "custom_wifi.h"
 
 fauxmoESP fauxmo;
+WebSocketClient webSocketClient;
+// ?? Use WiFiClient class to create TCP connections
+WiFiClient client;
+//char path[] = "/";
+//char host[] = "websocket.iotbridge.regex.be";
+char path[] = "/socket.io/?EIO=3&transport=websocket";
+char host[] = "necrosocket.herokuapp.com";
+
+//#define WEBSOCKET_HOST "192.168.43.121"
+#define WEBSOCKET_HOST "54.243.117.208"
+//#define WEBSOCKET_PORT 9999
+#define WEBSOCKET_PORT 4010
 
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASS;
+const char * hostName = "slpd";
 
 //ESP8266WebServer server(80);
+AsyncWebServer server(80);
 int x = 0;
 
 const int LED = 4;
@@ -24,6 +49,7 @@ bool status = false;
 
 void setup() {
   // put your setup code here, to run once:
+  WiFi.hostname(hostName);
   WiFi.begin(ssid, password);
   Serial.begin(115200);
   Serial.println("setup");
@@ -70,9 +96,99 @@ void setup() {
         }
     });
   Serial.println("fauxmo device added.");
+
+
+  ArduinoOTA.setHostname(hostName);
+  ArduinoOTA.begin();
+
+  MDNS.addService("http","tcp",80);
+
+  SPIFFS.begin();
+
+  server.on("/heap", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/plain", String(ESP.getFreeHeap()));
+  });
+
+  server.onNotFound([](AsyncWebServerRequest *request){
+    Serial.printf("NOT_FOUND: ");
+    if(request->method() == HTTP_GET)
+      Serial.printf("GET");
+    else if(request->method() == HTTP_POST)
+      Serial.printf("POST");
+    else if(request->method() == HTTP_DELETE)
+      Serial.printf("DELETE");
+    else if(request->method() == HTTP_PUT)
+      Serial.printf("PUT");
+    else if(request->method() == HTTP_PATCH)
+      Serial.printf("PATCH");
+    else if(request->method() == HTTP_HEAD)
+      Serial.printf("HEAD");
+    else if(request->method() == HTTP_OPTIONS)
+      Serial.printf("OPTIONS");
+    else
+      Serial.printf("UNKNOWN");
+    Serial.printf(" http://%s%s\n", request->host().c_str(), request->url().c_str());
+
+    if(request->contentLength()){
+      Serial.printf("_CONTENT_TYPE: %s\n", request->contentType().c_str());
+      Serial.printf("_CONTENT_LENGTH: %u\n", request->contentLength());
+    }
+
+    int headers = request->headers();
+    int i;
+    for(i=0;i<headers;i++){
+      AsyncWebHeader* h = request->getHeader(i);
+      Serial.printf("_HEADER[%s]: %s\n", h->name().c_str(), h->value().c_str());
+    }
+
+    int params = request->params();
+    for(i=0;i<params;i++){
+      AsyncWebParameter* p = request->getParam(i);
+      if(p->isFile()){
+        Serial.printf("_FILE[%s]: %s, size: %u\n", p->name().c_str(), p->value().c_str(), p->size());
+      } else if(p->isPost()){
+        Serial.printf("_POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
+      } else {
+        Serial.printf("_GET[%s]: %s\n", p->name().c_str(), p->value().c_str());
+      }
+    }
+
+    request->send(404);
+  });
+
+  server.begin();
+  connectToWebSocket();
+}
+unsigned long Timer = 0;
+unsigned int attempts = 0;
+
+void connectToWebSocket() {
+  attempts++;
+  if ( attempts > 2 ) {
+    Serial.println("Too many reconnect attempts.");
+    return;
+  }
+  // Connect to the websocket server
+  if (client.connect(WEBSOCKET_HOST, WEBSOCKET_PORT)) {
+    Serial.println("Connected");
+  } else {
+    Serial.println("Connection failed.");
+  }
+
+  // Handshake with the server
+  webSocketClient.path = path;
+  webSocketClient.host = host;
+  if (webSocketClient.handshake(client)) {
+    Serial.println("Handshake successful");
+  } else {
+    Serial.println("Handshake failed.");
+  }
 }
 
+
+
 void loop() {
+  String data;
   // put your main code here, to run repeatedly:
   //static int x = 0;
   //char* y = new char;
@@ -81,15 +197,36 @@ void loop() {
   //delay(100);
   //server.handleClient();
   fauxmo.handle();
-
+  ArduinoOTA.handle();
+  
   if (irrecv.decode(&results)) {
     Serial.println(results.value, HEX);
     dump(&results);
     irrecv.resume(); // Receive the next value
   }
+  
   digitalWrite(LED, status);
   status = !status;
 
+  if (client.connected()) {
+    //data = String("rawr");
+    //webSocketClient.sendData(data);
+    webSocketClient.getData(data);
+    if (data.length() > 0) {
+      Serial.print("Received data: ");
+      Serial.println(data);
+    }
+    
+    //webSocketClient.sendData(data);
+  } else if (Timer != 0 && millis() - Timer >= 15000) {
+    Serial.println("Reconnecting websocket.");
+    connectToWebSocket();
+    Timer = 0;
+  } else if (Timer == 0) {
+    Serial.println("Client disconnected. Scheduling reconnect attempt.");
+    Timer = millis();
+  }
+  
   delay(10);
 }
 
